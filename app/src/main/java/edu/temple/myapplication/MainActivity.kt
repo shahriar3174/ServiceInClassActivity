@@ -9,7 +9,8 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
-import android.widget.Button
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.TextView
 
 class MainActivity : AppCompatActivity() {
@@ -19,12 +20,14 @@ class MainActivity : AppCompatActivity() {
     var isConnected = false
     var currentTime: Int = 0
 
+    // Handler to update the UI from the background service
     val timeHandler = Handler(Looper.getMainLooper()) {
         timerTextView.text = it.what.toString()
         currentTime = it.what
         true
     }
 
+    // Managing the connection to the TimerService
     val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             timerBinder = service as TimerService.TimerBinder
@@ -43,42 +46,53 @@ class MainActivity : AppCompatActivity() {
 
         timerTextView = findViewById(R.id.textView)
 
+        // Binding to the service
         bindService(
             Intent(this, TimerService::class.java),
             serviceConnection,
             BIND_AUTO_CREATE
         )
+    }
 
-        val startButton = findViewById<Button>(R.id.startButton)
-        startButton.setOnClickListener {
-            if (isConnected) {
-                if(timerBinder.isRunning) {
-                    timerBinder.pause()
-                    startButton.text = "Unpause"
-                } else {
-                    if (timerBinder.paused) {
-                        Log.d("Testing Pause...", currentTime.toString())
-                        timerBinder.start(currentTime)
+    // Step 1: Inflate the menu resource file (main_menu.xml)
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return super.onCreateOptionsMenu(menu)
+    }
+
+    // Step 2: Handle clicks on the menu icons (Replicating button logic)
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.action_start_pause -> {
+                if (isConnected) {
+                    if (timerBinder.isRunning) {
+                        timerBinder.pause()
                     } else {
-                        timerBinder.start(100)
-                        startButton.text = "Pause"
+                        if (timerBinder.paused) {
+                            Log.d("Testing Pause...", currentTime.toString())
+                            timerBinder.start(currentTime)
+                        } else {
+                            // Starting timer with an initial value of 100
+                            timerBinder.start(100)
+                        }
                     }
                 }
+                return true
             }
-        }
-
-        findViewById<Button>(R.id.stopButton).setOnClickListener {
-            if (isConnected) {
-                timerBinder.stop()
-                if(!timerBinder.paused) {
-                    startButton.text = "Start"
+            R.id.action_stop -> {
+                if (isConnected) {
+                    timerBinder.stop()
                 }
+                return true
             }
         }
+        return super.onOptionsItemSelected(item)
+    }
 
-        fun onDestroy() {
+    override fun onDestroy() {
+        if (isConnected) {
             unbindService(serviceConnection)
-            super.onDestroy()
         }
+        super.onDestroy()
     }
 }
