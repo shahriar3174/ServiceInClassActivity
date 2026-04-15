@@ -18,7 +18,10 @@ class MainActivity : AppCompatActivity() {
     lateinit var timerTextView: TextView
     lateinit var timerBinder: TimerService.TimerBinder
     var isConnected = false
-    var currentTime: Int = 0
+    var currentTime: Int = 100 // Default value
+
+    private val PREFS_NAME = "TimerPrefs"
+    private val KEY_SAVED_TIME = "saved_time"
 
     // Handler to update the UI from the background service
     val timeHandler = Handler(Looper.getMainLooper()) {
@@ -46,6 +49,11 @@ class MainActivity : AppCompatActivity() {
 
         timerTextView = findViewById(R.id.textView)
 
+        // REQUIREMENT 2: Load saved value from persistent storage
+        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        currentTime = prefs.getInt(KEY_SAVED_TIME, 100)
+        timerTextView.text = currentTime.toString()
+
         // Binding to the service
         bindService(
             Intent(this, TimerService::class.java),
@@ -54,27 +62,24 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    // Step 1: Inflate the menu resource file (main_menu.xml)
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
         return super.onCreateOptionsMenu(menu)
     }
 
-    // Step 2: Handle clicks on the menu icons (Replicating button logic)
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+
         when (item.itemId) {
             R.id.action_start_pause -> {
                 if (isConnected) {
                     if (timerBinder.isRunning) {
                         timerBinder.pause()
+                        // REQUIREMENT 1: Save current value to persistent storage on Pause
+                        prefs.edit().putInt(KEY_SAVED_TIME, currentTime).apply()
                     } else {
-                        if (timerBinder.paused) {
-                            Log.d("Testing Pause...", currentTime.toString())
-                            timerBinder.start(currentTime)
-                        } else {
-                            // Starting timer with an initial value of 100
-                            timerBinder.start(100)
-                        }
+                        // Start/Resume the timer with the last known currentTime
+                        timerBinder.start(currentTime)
                     }
                 }
                 return true
@@ -82,11 +87,23 @@ class MainActivity : AppCompatActivity() {
             R.id.action_stop -> {
                 if (isConnected) {
                     timerBinder.stop()
+                    // Clear saved data on stop
+                    prefs.edit().remove(KEY_SAVED_TIME).apply()
+                    currentTime = 100
+                    timerTextView.text = "100"
                 }
                 return true
             }
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    override fun onStop() {
+        super.onStop()
+
+        if (isConnected && !timerBinder.paused) {
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().remove(KEY_SAVED_TIME).apply()
+        }
     }
 
     override fun onDestroy() {
